@@ -115,6 +115,7 @@ noaa |>
 ## The distribution of snowfall values greater than 0 and less than 100, by year
 
 ```{r p1-snow-distribution}
+```{r}
 noaa |>
   filter(!is.na(snow), snow > 0, snow < 100) |>
   ggplot(aes(x = factor(year), y = snow)) +
@@ -128,3 +129,140 @@ noaa |>
   ) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 ```
+
+
+# Problem 2:
+# Load, tidy, merge, and otherwise organize the data sets.
+```{r import and clean}
+nhanes_covar =
+  read_csv("data/nhanes_covar.csv", skip = 4) |>
+  filter(age >= 21) |>
+  drop_na(sex, age, BMI, education) |>
+  mutate(
+    sex = factor(sex, levels = c(1, 2),
+                 labels = c("Male", "Female")),
+    education = factor(
+      education,
+      levels = c(1, 2, 3),
+      labels = c("Less than high school",
+                 "High school equivalent",
+                 "More than high school"),
+      ordered = TRUE
+    )
+  )
+
+nhanes_accel =
+  read_csv("data/nhanes_accel.csv") |>
+  pivot_longer(
+    starts_with("min"),
+    names_to = "minute",
+    names_prefix = "min",
+    values_to = "mims"
+  ) |>
+  mutate(minute = as.integer(minute))
+
+nhanes_tidy =
+  inner_join(nhanes_covar, nhanes_accel, by = "SEQN")
+```
+
+
+## Sex counts and age distributions
+
+```{r}
+nhanes_tidy |>
+  distinct(SEQN, sex, education) |>
+  count(education, sex) |>
+  pivot_wider(names_from = sex, values_from = n) |>
+  knitr::kable()
+    
+nhanes_covar |>
+  ggplot(aes(x = age, color = sex)) +
+  geom_density() +
+  facet_wrap(~ education, nrow = 1) +
+  labs(
+    title = "Age distribution by sex and education",
+    x = "Age",
+    y = "Density")
+```
+
+Participants in the highest education category tend to be younger, while the two lower education categories contain more older adults. 
+
+## Total daily activity versus age
+
+```{r total_activity_vs_age}
+daily_activity =
+  nhanes_tidy |>
+  group_by(SEQN, age, sex, education) |>
+  summarise(
+    total_mims = sum(mims, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(daily_activity,
+       aes(x = age, y = total_mims, color = sex)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~ education, nrow = 1) +
+  labs(
+    title = "Total daily activity by age",
+    x = "Age",
+    y = "Total MIMS"
+  )
+```
+
+Total daily activity generally decreases with age and there is considerable variation among participants.
+
+## 24 hrs activity
+
+```{r}
+nhanes_tidy |>
+  mutate(hour = floor((minute - 1) / 15) / 4) |>
+  group_by(education, sex, hour) |>
+  summarise(
+    mean_mims = mean(mims, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = hour, y = mean_mims, color = sex)) +
+  geom_line() +
+  facet_wrap(~ education, nrow = 1) +
+  scale_x_continuous(breaks = seq(0, 24, 4)) +
+  labs(
+    title = "Activity over 24 hours",
+    x = "Hour of day",
+    y = "Mean MIMS"
+  )
+```
+
+Activity levels are lowest during the early morning hours around 4AM and increase after around 6 AM. Activity remains high during the daytime and reaches its peak around 12AM. Women with more than high school education have higher daytime activity levels than men.
+
+# Problem 3:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
